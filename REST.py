@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from dateutil import parser as dtparser
 import os
+from datetime import timezone
 
 INFLUX_URL = os.getenv("INFLUX_URL", "http://influxdb:8086")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "")
@@ -33,7 +34,17 @@ def ingest():
 
         for e in entries:
             try:
-                ts = dtparser.parse(e["date"])      # timezone aware
+                ts = dtparser.parse(e["date"])
+
+                # ensure timezone-aware (assume UTC if missing)
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+
+                # normalize to full minute (truncate)
+                ts = ts.replace(second=0, microsecond=0)
+
+                # optional: store as UTC consistently
+                ts = ts.astimezone(timezone.utc)
                 value = float(e["qty"])
                 source = e.get("source", "unknown")
 
